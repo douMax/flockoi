@@ -20,14 +20,75 @@ gui.add(flockParams, 'maxForce', .05, 3)
 gui.add(flockParams, 'perceptionRadius', 20, 300)
 
 /*==================
+lotusLeaf
+===================*/
+
+
+class lotusLeaf {
+    constructor(x, y, offset, scale) {
+        this.x = x
+        this.y = y
+        this.offset = offset
+        this.scale = scale
+        this.size = random(50, 100)
+        this.color = color(71, 184, 151)
+        this.opacity = random(100, 200)
+    }
+
+    show() {
+        noStroke()
+        
+        push()
+           
+            translate(this.x, this.y)
+            noiseDetail(1, .8)
+            let vertices = []
+
+            for (let i = 0; i < TWO_PI; i += radians(1)) {
+                
+                let x = this.offset * cos(i) + this.offset
+                let y = this.offset * sin(i) + this.offset
+                
+                let r = 180 + map(noise(x, y), 0, 1, -this.scale, this.scale)
+                
+                let x1 = r * cos(i)
+                let y1 = r * sin(i)
+                
+                vertices.push({x: x1, y: y1})
+            }
+
+            noStroke()
+            fill(0, 0, 0, 10)
+            beginShape()
+                vertices.map(v => vertex(v.x + 50, v.y + 50))
+            endShape()
+
+            fill(this.color)
+            beginShape()
+                vertices.map(v => vertex(v.x, v.y))
+            endShape()
+
+            vertices.map((v, index) => {
+                if ((index + 1) % 40 === 0) {
+                    strokeWeight(6)
+                    stroke(23,111,88,40)
+                    line(v.x * .1, v.y * .19, v.x * .9, v.y * .86)
+                }
+            })
+        pop()
+    }
+
+}
+
+/*==================
 Ripple
 ===================*/
 class Ripple {
     constructor(x, y) {
         this.position = createVector(x, y)
         this.size = random(50, 100)
-        this.lifespan = 60
-        this.color = color(0, 0, 0)
+        this.lifespan = 255
+        this.color = color(255, 255, 255)
         this.sizeStep = random(2, 3)
         this.lifeStep = random(1, 2)
     }
@@ -38,6 +99,9 @@ class Ripple {
         strokeWeight(1)
         noFill()
         ellipse(this.position.x, this.position.y, this.size, this.size)
+
+        stroke(0,0,0,10)
+        ellipse(this.position.x + 50, this.position.y + 50, this.size, this.size)
     }
 
     update() {
@@ -45,8 +109,6 @@ class Ripple {
         this.lifespan = this.lifespan - this.lifeStep
     }
 }
-
-
 
 /*==================
 Koi
@@ -211,12 +273,13 @@ class Koi {
             let size
             if ( index < this.bodyLength / 6 ) {
                 size = this.baseSize + index * 1.8
-                fill(251, 36, 40, this.bodyLength - index)
+                // fill(247, 249, 89, this.bodyLength - index)
+
             } else {
-                fill(0, 0, 0, 50 - index)
                 size = this.baseSize * 1.8 - index
             }
             
+            fill(251, 36, 40, this.bodyLength - index)
             ellipse(b.x, b.y, size, size)
         })
     }
@@ -253,6 +316,7 @@ Sketch: setup, draw, ect
 
 const flock = []
 const ripples = []
+const lotusLeaves = []
 const koiNumber = 20
 
 function setup() {
@@ -262,6 +326,9 @@ function setup() {
     new Array(koiNumber).fill(1).map(el => {
         flock.push(new Koi(centerX, centerY))
     })
+
+    lotusLeaves.push(new lotusLeaf(100, 100, .4, 100))
+    lotusLeaves.push(new lotusLeaf(width - 100, height - 100, 1, 40))
 }
 
 function draw() {
@@ -272,6 +339,7 @@ function draw() {
         koi.showShadow()
     })
 
+  
     flock.forEach(koi => {
         koi.edges()
         koi.flock(flock)
@@ -282,7 +350,6 @@ function draw() {
     if (frameCount % 30 === 0) {
         ripples.push(new Ripple(random(width), random(height)))
     }
-    console.log(frameCount)
 
     ripples.forEach((r, i) => {
         r.update()
@@ -291,6 +358,9 @@ function draw() {
             ripples.slice(i, 1)
         }
     })
+
+    lotusLeaves.forEach(leaf => leaf.show())
+
 
 }
 
