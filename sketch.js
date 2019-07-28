@@ -3,7 +3,7 @@ class FlockParams {
     constructor() {
         this.maxForce = 0.08
         this.maxSpeed = 3.7
-        this.perceptionRadius = 200
+        this.perceptionRadius = 100
         this.alignAmp = 1
         this.cohesionAmp = 1
         this.separationAmp = 1
@@ -23,6 +23,7 @@ gui.add(flockParams, 'perceptionRadius', 20, 300)
 lotusLeaf
 ===================*/
 
+const shadowColor = 'rgba(0,0,0,0.05)'
 
 class lotusLeaf {
     constructor(x, y, offset, scale) {
@@ -30,16 +31,18 @@ class lotusLeaf {
         this.y = y
         this.offset = offset
         this.scale = scale
-        this.size = random(50, 100)
         this.color = color(71, 184, 151)
-        this.opacity = random(100, 200)
+    }
+
+    drawShape(vertices, offset, color) {
+        fill(color)
+        beginShape()
+            vertices.map(v => vertex(v.x + offset, v.y + offset))
+        endShape()
     }
 
     show() {
-        noStroke()
-        
         push()
-           
             translate(this.x, this.y)
             noiseDetail(1, .8)
             let vertices = []
@@ -58,15 +61,8 @@ class lotusLeaf {
             }
 
             noStroke()
-            fill(0, 0, 0, 10)
-            beginShape()
-                vertices.map(v => vertex(v.x + 50, v.y + 50))
-            endShape()
-
-            fill(this.color)
-            beginShape()
-                vertices.map(v => vertex(v.x, v.y))
-            endShape()
+            this.drawShape(vertices, 50, shadowColor)
+            this.drawShape(vertices, 0, this.color)
 
             vertices.map((v, index) => {
                 if ((index + 1) % 40 === 0) {
@@ -90,23 +86,26 @@ class Ripple {
         this.lifespan = 255
         this.color = color(255, 255, 255)
         this.sizeStep = random(2, 3)
-        this.lifeStep = random(1, 2)
+        this.lifeStep = random(2, 10)
+    }
+
+    drawShape(x, y, offset, size, color) {
+        stroke(color)
+        strokeWeight(1)
+        noFill()
+        circle(x + offset, y + offset, size)
     }
 
     show() {
         this.color.setAlpha(this.lifespan)
-        stroke(this.color)
-        strokeWeight(1)
-        noFill()
-        ellipse(this.position.x, this.position.y, this.size, this.size)
 
-        stroke(0,0,0,10)
-        ellipse(this.position.x + 50, this.position.y + 50, this.size, this.size)
+        this.drawShape(this.position.x, this.position.y, 0, this.size, this.color)
+        this.drawShape(this.position.x, this.position.y, 50, this.size, color(shadowColor))
     }
 
     update() {
-        this.size = this.size + this.sizeStep
-        this.lifespan = this.lifespan - this.lifeStep
+        this.size += this.sizeStep
+        this.lifespan -= this.lifeStep
     }
 }
 
@@ -114,10 +113,11 @@ class Ripple {
 Koi
 ===================*/
 
-// cont koiColors = []
+const koiColors = ['#E95D0C', '#EEA237', '#E02D28']
 
 class Koi {
-    constructor(x, y) {
+    constructor(x, y, koiColor) {
+        this.color = color(koiColor)
         this.offsetX = random(-100, 100)
         this.offsetY = random(-100, 100)
         this.position = createVector(x + this.offsetX, y + this.offsetY)
@@ -131,8 +131,7 @@ class Koi {
         this.body = new Array(this.bodyLength).fill({...this.position})
     }
 
-    align(kois) {
-        // let perceptionRadius = 50
+    calculateDesiredSteeringForce (kois, factorType) {
         let steering = createVector()
         let total = 0
         for (let other of kois) {
@@ -143,12 +142,28 @@ class Koi {
                 other.position.y
             )
             if (d < flockParams.perceptionRadius && other != this) {
-                steering.add(other.velocity)
+                switch (factorType) {
+                    case 'align':
+                        steering.add(other.velocity)
+                        break;
+                    case 'cohesion':
+                        steering.add(other.position)
+                        break;
+                    case 'separation':
+                        let diff = p5.Vector.sub(this.position, other.position)
+                        diff.div(d)
+                        steering.add(diff)
+                        break;
+                    default:
+                        break;
+                }
                 total++
             }
         }
+
         if (total > 0) {
             steering.div(total)
+            if (factorType === 'cohesion') steering.sub(this.position)
             steering.setMag(flockParams.maxSpeed)
             steering.sub(this.velocity)
             steering.limit(flockParams.maxForce)
@@ -156,57 +171,11 @@ class Koi {
         return steering
     }
 
-    cohesion(kois) {
-        let steering = createVector()
-        let total = 0
-        for (let other of kois) {
-            let d = dist(
-                this.position.x,
-                this.position.y,
-                other.position.x,
-                other.position.y
-            )
-            if (d < flockParams.perceptionRadius && other != this) {
-                steering.add(other.position)
-                total++
-            }
-        }
-        if (total > 0) {
-            steering.div(total)
-            steering.sub(this.position)
-            steering.setMag(flockParams.maxSpeed)
-            steering.sub(this.velocity)
-            steering.limit(flockParams.maxForce)
-        }
-        return steering
-    }
+    align = kois => this.calculateDesiredSteeringForce(kois, 'align')
 
-    separation(kois) {
-        // let perceptionRadius = 100
-        let steering = createVector()
-        let total = 0
-        for (let other of kois) {
-            let d = dist(
-                this.position.x,
-                this.position.y,
-                other.position.x,
-                other.position.y
-            )
-            if (d < flockParams.perceptionRadius && other != this) {
-                let diff = p5.Vector.sub(this.position, other.position)
-                diff.div(d)
-                steering.add(diff)
-                total++
-            }
-        }
-        if (total > 0) {
-            steering.div(total)
-            steering.setMag(flockParams.maxSpeed)
-            steering.sub(this.velocity)
-            steering.limit(flockParams.maxForce)
-        }
-        return steering
-    }
+    cohesion = kois => this.calculateDesiredSteeringForce(kois, 'cohesion')
+
+    separation = kois => this.calculateDesiredSteeringForce(kois, 'separation')
 
     avoid(obstacle) {
         let steering = createVector()
@@ -224,8 +193,6 @@ class Koi {
             steering.sub(this.velocity)
             steering.limit(flockParams.maxForce)
         }
-
-
         return steering
     }
 
@@ -259,8 +226,9 @@ class Koi {
         this.acceleration.add(separation)
         this.acceleration.add(alignment)
         this.acceleration.add(cohesion)
-    }
 
+        this.acceleration.add(p5.Vector.random2D().mult(.05))
+    }
 
     updateBody() {
         this.body.unshift({...this.position})
@@ -273,13 +241,11 @@ class Koi {
             let size
             if ( index < this.bodyLength / 6 ) {
                 size = this.baseSize + index * 1.8
-                // fill(247, 249, 89, this.bodyLength - index)
-
             } else {
-                size = this.baseSize * 1.8 - index
+                size = this.baseSize * 2 - index
             }
-            
-            fill(251, 36, 40, this.bodyLength - index)
+            this.color.setAlpha(this.bodyLength - index)
+            fill(this.color)
             ellipse(b.x, b.y, size, size)
         })
     }
@@ -308,8 +274,6 @@ class Koi {
     }
 }
 
-
-
 /*==================
 Sketch: setup, draw, ect
 ===================*/
@@ -323,9 +287,9 @@ function setup() {
     createCanvas(windowWidth, windowHeight)
     const centerX = random(width - 200, 200)
     const centerY = random(height - 200, 200)
-    new Array(koiNumber).fill(1).map(el => {
-        flock.push(new Koi(centerX, centerY))
-    })
+
+    const color = random(koiColors)
+    new Array(koiNumber).fill(1).map(_ => flock.push(new Koi(centerX, centerY, color)))
 
     lotusLeaves.push(new lotusLeaf(100, 100, .4, 100))
     lotusLeaves.push(new lotusLeaf(width - 100, height - 100, 1, 40))
@@ -333,13 +297,11 @@ function setup() {
 
 function draw() {
     background(230)
-
     // shadow
     flock.forEach(koi => {
         koi.showShadow()
     })
 
-  
     flock.forEach(koi => {
         koi.edges()
         koi.flock(flock)
@@ -347,21 +309,15 @@ function draw() {
         koi.show()
     })
 
-    if (frameCount % 30 === 0) {
-        ripples.push(new Ripple(random(width), random(height)))
-    }
+    if (frameCount % 30 === 0) ripples.push(new Ripple(random(width), random(height)))
 
     ripples.forEach((r, i) => {
         r.update()
         r.show()
-        if (r.lifespan < 0 ) {
-            ripples.slice(i, 1)
-        }
+        if (r.lifespan < 0 ) ripples.splice(i, 1)
     })
 
     lotusLeaves.forEach(leaf => leaf.show())
-
-
 }
 
 /*==================
